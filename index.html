@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Story to Video Generator</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center justify-center p-4">
+
+    <div class="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6">
+        <h1 class="text-2xl font-bold text-center mb-1 bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">AI Video Generator</h1>
+        <p class="text-xs text-center text-slate-400 mb-6">Ubah cerita teks Anda menjadi video sinematik dengan AI</p>
+
+        <!-- Form Input -->
+        <div class="space-y-4">
+            <div>
+                <label class="block text-xs font-medium text-slate-300 mb-1">Gaya Visual</label>
+                <select id="styleSelect" class="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-indigo-500">
+                    <option value="Cinematic, highly detailed, 4k">Cinematic & Realistik</option>
+                    <option value="Anime style, vibrant colors, studio ghibli">Anime / Kartun</option>
+                    <option value="Cyberpunk, neon lights, futuristic">Cyberpunk</option>
+                    <option value="Fantasy oil painting, magical atmosphere">Fantasi / Lukisan</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-xs font-medium text-slate-300 mb-1">Tulis Cerita Anda</label>
+                <textarea id="storyInput" rows="4" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-sm focus:outline-none focus:border-indigo-500 resize-none" placeholder="Contoh: Seekor kucing astronot sedang mendarat di permukaan planet Mars..."></textarea>
+            </div>
+
+            <button onclick="generateVideo()" id="submitBtn" class="w-full bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-white font-medium py-2.5 rounded-xl transition duration-200 shadow-lg text-sm cursor-pointer">
+                Buat Video Sekarang
+            </button>
+        </div>
+
+        <!-- Progress Section -->
+        <div id="progressSection" class="hidden mt-6 text-center space-y-3">
+            <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-indigo-500 border-t-transparent"></div>
+            <p id="statusText" class="text-xs text-indigo-300 animate-pulse">Menghubungkan ke server AI...</p>
+        </div>
+
+        <!-- Result Section -->
+        <div id="resultSection" class="hidden mt-6 space-y-3">
+            <div class="rounded-xl overflow-hidden border border-slate-800 bg-black aspect-video flex items-center justify-center">
+                <video id="outputVideo" controls class="w-full h-full object-contain"></video>
+            </div>
+            <a id="downloadBtn" download="ai-video.mp4" class="block text-center bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 text-xs font-medium py-2 rounded-xl transition">
+                Unduh Video
+            </a>
+        </div>
+    </div>
+
+    <script>
+        const HUGGINGFACE_TOKEN = "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";
+        const MODEL_URL = "https://api-inference.huggingface.co/models/Lightricks/LTX-Video";
+
+        async function generateVideo() {
+            const story = document.getElementById('storyInput').value.trim();
+            const style = document.getElementById('styleSelect').value;
+            const submitBtn = document.getElementById('submitBtn');
+            const progressSection = document.getElementById('progressSection');
+            const statusText = document.getElementById('statusText');
+            const resultSection = document.getElementById('resultSection');
+            const outputVideo = document.getElementById('outputVideo');
+            const downloadBtn = document.getElementById('downloadBtn');
+
+            if (!story) {
+                alert('Silakan masukkan cerita terlebih dahulu!');
+                return;
+            }
+
+            const finalPrompt = `${story}, ${style}`;
+
+            submitBtn.disabled = true;
+            submitBtn.classList.add('opacity-50');
+            progressSection.classList.remove('hidden');
+            resultSection.classList.add('hidden');
+            statusText.innerText = 'Menghidupkan server AI (bisa memakan waktu 1-2 menit)...';
+
+            try {
+                const response = await fetch(MODEL_URL, {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${HUGGINGFACE_TOKEN}`,
+                        "Content-Type": "application/json",
+                        "x-wait-for-model": "true"
+                    },
+                    body: JSON.stringify({ inputs: finalPrompt })
+                });
+
+                if (!response.ok) {
+                    let errorMsg = 'Gagal memproses dari server AI.';
+                    try {
+                        const errData = await response.json();
+                        errorMsg = errData.error || errorMsg;
+                    } catch (e) {
+                        errorMsg = `Status HTTP: ${response.status} (${response.statusText})`;
+                    }
+                    throw new Error(errorMsg);
+                }
+
+                const blob = await response.blob();
+                
+                // Pastikan yang diterima benar-benar file video, bukan pesan teks error
+                if (blob.type.includes('application/json') || blob.type.includes('text/plain')) {
+                    const text = await blob.text();
+                    throw new Error("Respon server bukan video: " + text);
+                }
+
+                const videoUrl = URL.createObjectURL(blob);
+
+                outputVideo.src = videoUrl;
+                downloadBtn.href = videoUrl;
+                
+                progressSection.classList.add('hidden');
+                resultSection.classList.remove('hidden');
+
+            } catch (error) {
+                console.error(error);
+                alert('Terjadi kesalahan: ' + error.message);
+                progressSection.classList.add('hidden');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.classList.remove('opacity-50');
+            }
+        }
+    </script>
+</body>
+</html>
